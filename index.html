@@ -1,1 +1,44 @@
-the page
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Password Playground — Strength Checker</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="hero">
+      <h1>Password Playground</h1>
+      <p class="subtitle">Check password strength — runs entirely in your browser.</p>
+    </header>
+
+    <section class="card">
+      <label for="password" class="label">Type a password</label>
+      <div class="input-row">
+        <input id="password" type="password" autocomplete="new-password" placeholder="Try something like: sTr0ng!Pass" />
+        <button id="toggle" class="btn tiny" aria-pressed="false">Show</button>
+      </div>
+
+      <div class="controls">
+        <button id="generate" class="btn">Generate strong password</button>
+        <button id="copy" class="btn alt" title="Copy password">Copy</button>
+      </div>
+
+      <div class="meter" aria-hidden="true">
+        <div id="meter-fill" class="meter-fill"></div>
+      </div>
+
+      <p id="strength-text" class="strength" aria-live="polite"></p>
+
+      <ul id="suggestions" class="suggestions" aria-live="polite"></ul>
+    </section>
+
+    <footer class="foot">
+      Tip: Use at least 12 unique characters. Avoid common words like "password" or simple sequences.
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
