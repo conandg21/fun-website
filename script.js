@@ -1,48 +1,135 @@
-:root{
-  --bg: #0f1724;
-  --card: #0b1220;
-  --accent: #7dd3fc;
-  --muted: #94a3b8;
-  --ok: #34d399;
-  --warn: #fbbf24;
-  --bad: #fb7185;
-  --glass: rgba(255,255,255,0.03);
-  --radius: 12px;
-  --max-width: 720px;
+// All client-side — nothing is sent anywhere.
+// Simple password-strength heuristics with helpful suggestions.
+
+const pwd = document.getElementById('password');
+const toggle = document.getElementById('toggle');
+const generateBtn = document.getElementById('generate');
+const copyBtn = document.getElementById('copy');
+const meterFill = document.getElementById('meter-fill');
+const strengthText = document.getElementById('strength-text');
+const suggestionsList = document.getElementById('suggestions');
+
+pwd.addEventListener('input', updateUI);
+toggle.addEventListener('click', toggleShow);
+generateBtn.addEventListener('click', () => {
+  const p = generatePassword(16);
+  pwd.value = p;
+  updateUI();
+});
+copyBtn.addEventListener('click', () => {
+  if (!pwd.value) return;
+  navigator.clipboard?.writeText(pwd.value).then(()=> {
+    copyBtn.textContent = 'Copied ✓';
+    setTimeout(()=> copyBtn.textContent = 'Copy', 1500);
+  }).catch(()=> alert('Copy failed — select and press Ctrl/Cmd+C'));
+});
+
+// initial
+updateUI();
+
+function toggleShow(){
+  const isHidden = pwd.type === 'password';
+  pwd.type = isHidden ? 'text' : 'password';
+  toggle.textContent = isHidden ? 'Hide' : 'Show';
+  toggle.setAttribute('aria-pressed', String(isHidden));
 }
 
-*{box-sizing:border-box;font-family:Inter,Segoe UI,Helvetica,Arial,sans-serif}
-html,body{height:100%;margin:0;background:linear-gradient(180deg,#081226 0%, #071025 100%);color:#e6eef8}
-.wrap{max-width:var(--max-width);margin:36px auto;padding:20px}
-.hero{text-align:center;margin-bottom:18px}
-.hero h1{margin:0;font-size:clamp(1.4rem, 3vw, 2rem)}
-.hero .subtitle{color:var(--muted);margin-top:6px;font-size:0.95rem}
+function updateUI(){
+  const val = pwd.value || '';
+  const info = evaluatePassword(val);
 
-.card{background:var(--card);padding:18px;border-radius:var(--radius);box-shadow:0 6px 24px rgba(1,6,16,0.6)}
-.label{display:block;margin-bottom:8px;color:var(--muted)}
-.input-row{display:flex;gap:8px;align-items:center}
-.input-row input{flex:1;padding:12px 14px;border-radius:10px;border:1px solid rgba(255,255,255,0.03);background:var(--glass);color:inherit;font-size:1rem;outline:none}
-.input-row input::placeholder{color:#6f8aa1}
-.btn{padding:10px 14px;border-radius:10px;border:0;background:linear-gradient(180deg,var(--accent),#38bdf8);color:#022026;cursor:pointer;font-weight:600}
-.btn.alt{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--accent)}
-.btn.tiny{padding:8px 10px;font-size:0.9rem}
-.controls{display:flex;gap:8px;margin-top:12px}
-.meter{height:12px;background:rgba(255,255,255,0.04);border-radius:10px;margin-top:16px;overflow:hidden}
-.meter-fill{height:100%;width:0%;transition:width 250ms ease, background 250ms ease}
-.strength{margin:10px 0 0;color:var(--muted);font-weight:600}
-.suggestions{margin:10px 0 0;padding-left:18px;color:var(--muted);line-height:1.5}
-.foot{color:var(--muted);text-align:center;margin-top:16px;font-size:0.9rem}
+  // update meter
+  meterFill.style.width = info.percent + '%';
+  meterFill.className = 'meter-fill ' + info.className;
 
-/* color classes for meter */
-.fill-very-weak{background:linear-gradient(90deg,#ff6b6b,#fb7185)}
-.fill-weak{background:linear-gradient(90deg,#fb7185,#fb923c)}
-.fill-medium{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
-.fill-strong{background:linear-gradient(90deg,#84cc16,#34d399)}
-.fill-very-strong{background:linear-gradient(90deg,#34d399,#10b981)}
+  // update text
+  strengthText.textContent = info.verdict + (val ? ` — ${info.details}` : '');
+  
+  // update suggestions
+  suggestionsList.innerHTML = '';
+  info.suggestions.forEach(s => {
+    const li = document.createElement('li');
+    li.textContent = s;
+    suggestionsList.appendChild(li);
+  });
+}
 
-/* responsive */
-@media (max-width:520px){
-  .controls{flex-direction:column}
-  .input-row{flex-direction:column}
-  .input-row input{width:100%}
+/** Evaluate password and return UI helpers */
+function evaluatePassword(p){
+  if (!p) {
+    return {
+      score: 0, percent: 0, className: 'fill-very-weak',
+      verdict: 'Empty',
+      details: 'Type a password to see strength.',
+      suggestions: ['Type a password to see suggestions.']
+    };
+  }
+
+  let score = 0;
+  const len = p.length;
+
+  // length buckets
+  if (len >= 8) score += 1;
+  if (len >= 12) score += 1;
+  if (len >= 16) score += 1;
+
+  // char variety
+  const lower = /[a-z]/.test(p);
+  const upper = /[A-Z]/.test(p);
+  const digit = /\d/.test(p);
+  const special = /[^A-Za-z0-9]/.test(p);
+
+  if (lower) score++;
+  if (upper) score++;
+  if (digit) score++;
+  if (special) score++;
+
+  // penalties for obvious weak patterns
+  let penalties = 0;
+  if (/(.)\1\1/.test(p)) penalties += 1; // triple repeated char
+  const commons = ['password','12345','123456','qwerty','abc123','letmein','admin','welcome','iloveyou'];
+  for (const c of commons) if (p.toLowerCase().includes(c)) penalties += 2;
+
+  score = score - penalties;
+  score = Math.max(0, Math.min(8, score));
+
+  const percent = Math.round((score / 8) * 100);
+
+  // verdict mapping
+  let verdict = 'Very weak';
+  let className = 'fill-very-weak';
+  if (percent >= 86) { verdict = 'Very strong'; className = 'fill-very-strong'; }
+  else if (percent >= 61) { verdict = 'Strong'; className = 'fill-strong'; }
+  else if (percent >= 36) { verdict = 'Medium'; className = 'fill-medium'; }
+  else if (percent >= 16) { verdict = 'Weak'; className = 'fill-weak'; }
+  else { verdict = 'Very weak'; className = 'fill-very-weak'; }
+
+  // friendly details
+  const details = `${percent}%`;
+
+  // tailored suggestions
+  const suggestions = [];
+  if (len < 12) suggestions.push('Make it longer — aim for at least 12 characters.');
+  if (!lower) suggestions.push('Add lowercase letters.');
+  if (!upper) suggestions.push('Add uppercase letters.');
+  if (!digit) suggestions.push('Include numbers (0–9).');
+  if (!special) suggestions.push('Include symbols like ! @ # $ % & *.');
+  if (/(.)\1\1/.test(p)) suggestions.push('Avoid repeated characters (aaa or 111).');
+  for (const c of commons) if (p.toLowerCase().includes(c)) suggestions.push('Avoid common words, sequences, or simple patterns.');
+
+  if (suggestions.length === 0) suggestions.push('Nice! Consider using a passphrase (random words) for even better memorability + strength.');
+
+  return { score, percent, className, verdict, details, suggestions };
+}
+
+/** Generate a cryptographically random password */
+function generatePassword(length = 16){
+  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+[]{}|;:,.<>?';
+  const arr = new Uint32Array(length);
+  window.crypto.getRandomValues(arr);
+  let out = '';
+  for (let i = 0; i < length; i++){
+    out += charset[arr[i] % charset.length];
+  }
+  return out;
 }
